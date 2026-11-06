@@ -157,3 +157,62 @@ Two framework/runtime interactions needed computation-side handling:
 assertions now check this computation's task names and local state type. The
 expected public API set now includes `cache_file`, which the boilerplate's
 `framework/__init__.py` exports but its own test at `ea2436e` did not list.
+
+## Open questions
+
+### Should inputs move to `covariates.csv` / `data.csv`, and how should the reference set be supplied?
+
+**Status:** deferred (2026-11-05). Inputs remain `site_data.txt` and
+`site_label.txt`, with the bundled MNIST reference set.
+
+**Proposal.** Switch to the `covariates.csv` / `data.csv` convention used by
+the sibling FreeSurfer computations:
+
+- `data.csv`: the features to embed, with a header row and the columns chosen
+  in the settings, like the siblings' `Dependents`.
+- `covariates.csv`: the columns to color the map by (for example diagnosis,
+  sex or age group). The report would let viewers switch between them,
+  replacing the single label file.
+
+**The file format alone does not make typical datasets usable.** Two other
+changes are needed:
+
+1. **A matching reference set.** dSNE works only through a reference dataset
+   that every site can see: central embeds it and sites anchor their points
+   to it. The reference must have the same columns as the sites' data,
+   measured the same way. The bundled reference (80 MNIST digit images, 784
+   pixel features) fits only MNIST-style digit images, so, for example, a
+   consortium embedding 17 FreeSurfer volumes needs a reference of those same
+   17 volumes from subjects whose data is not private.
+2. **Per-feature scaling.** `normalize_rows` divides each row by its largest
+   absolute value, which suits pixel data but not tabular features with
+   different units. In the sibling FreeSurfer test data, intracranial volume
+   (about 1.5 million) would swamp every other column. Each column should be
+   standardized with means and standard deviations pooled across sites; sites
+   would share only per-column sums and sums of squares.
+
+**Options for supplying the reference set:**
+
+- **A. Consortium-provided reference (recommended).** The consortium leader
+  supplies a reference file, such as public data (ABIDE, OASIS, or
+  consented subjects) processed with the same pipeline as the sites' data.
+  The leader's site sends it to central and it is shared with all sites.
+  This follows the `consortium_leader_id` pattern of the brain-age
+  computations, and works for any tabular data type without code changes per
+  data type.
+- **B. Curated reference sets bundled per data type** (for example FreeSurfer
+  aseg volumes). Simpler for users, but each set must be curated and
+  maintained, and processing versions must match the sites' data.
+- **C. A synthetic reference built from pooled statistics.** Needs no real
+  reference data, but departs from the published algorithm and would need its
+  own validation. Not recommended without a research decision.
+
+**Expected scope with A plus pooled scaling.** Tabular data such as FreeSurfer
+ROI tables and FNC vectors would work. Voxel-level VBM (100,000+ columns)
+would need downsampling first: the reference matrix is shared with every
+site, and PCA builds a features × features matrix.
+
+**If adopted, also update:** `inputs.py` (CSV loading and column selection),
+`tsne.normalize_rows` (pooled per-feature standardization, which adds one
+round), `remote_math` (accepting the reference from the leader's site), the
+report's color-by options, `display_notes.md`, the README and the test data.
