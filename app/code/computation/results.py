@@ -17,6 +17,7 @@ from .types import PHASE_DONE, REFERENCE_SOURCE, GlobalMessage, LocalState  # no
 PLOT_FILENAME = "tsne_embedding.png"
 EMBEDDING_FILENAME = "global_embedding.csv"
 SUMMARY_FILENAME = "summary.json"
+AXIS_NAMES = ("x", "y", "z")
 
 
 def build_outputs(
@@ -43,14 +44,13 @@ def build_outputs(
     participating = list(site_names.values())
     error_history = [list(entry) for entry in (message.error_history or [])]
 
-    global_df = pd.DataFrame(
-        {
-            "x": embedding[:, 0],
-            "y": embedding[:, 1],
-            "label": _labels_for_output(labels),
-            "source": sources,
-        }
-    )
+    columns = {
+        axis: embedding[:, index]
+        for index, axis in enumerate(AXIS_NAMES[: embedding.shape[1]])
+    }
+    columns["label"] = _labels_for_output(labels)
+    columns["source"] = sources
+    global_df = pd.DataFrame(columns)
     global_df.index.name = "point"
 
     png_bytes = _render_plot(embedding, labels)
@@ -92,7 +92,10 @@ def build_outputs(
         parameters=parameters,
         output_files={
             EMBEDDING_FILENAME: "Coordinates, label and source of every point",
-            PLOT_FILENAME: "Static image of the embedding colored by label",
+            PLOT_FILENAME: (
+                "Static image of the embedding colored by label"
+                + (" (one fixed viewing angle)" if embedding.shape[1] == 3 else "")
+            ),
             SUMMARY_FILENAME: "Run summary, KL error history and parameters",
         },
     )
@@ -112,9 +115,21 @@ def _labels_for_output(labels: np.ndarray):
 
 
 def _render_plot(embedding: np.ndarray, labels: np.ndarray) -> bytes:
-    """Scatter the embedding colored by label, as in the original figure."""
-    figure, axes = plt.subplots(figsize=(8, 6))
-    scatter = axes.scatter(embedding[:, 0], embedding[:, 1], 5, labels)
+    """Scatter the embedding colored by label, as in the original figure.
+
+    A 3-D embedding is drawn from one fixed viewing angle; the HTML report has
+    the rotatable view.
+    """
+    if embedding.shape[1] == 3:
+        figure = plt.figure(figsize=(8, 6))
+        axes = figure.add_subplot(projection="3d")
+        scatter = axes.scatter(
+            embedding[:, 0], embedding[:, 1], embedding[:, 2], s=5, c=labels
+        )
+        axes.view_init(elev=25, azim=35)
+    else:
+        figure, axes = plt.subplots(figsize=(8, 6))
+        scatter = axes.scatter(embedding[:, 0], embedding[:, 1], 5, labels)
     # num=None gives one legend entry per distinct label value.
     handles, legend_labels = scatter.legend_elements(num=None)
     axes.legend(

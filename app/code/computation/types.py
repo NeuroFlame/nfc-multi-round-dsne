@@ -11,9 +11,8 @@ PHASE_INITIALIZE = "initialize"
 PHASE_OPTIMIZE = "optimize"
 PHASE_DONE = "done"
 
-# The original algorithm only supports a two-dimensional embedding: the site
-# initialization, the gradient step, and the final plot all assume 2 columns.
-SUPPORTED_NO_DIMS = 2
+# Embedding dimensions the computation and its report support.
+SUPPORTED_NO_DIMS = (2, 3)
 
 # Safety cap on gradient iterations. The framework's iteration limit is fixed
 # when the spec is imported, so the user-facing ``max_iterations`` parameter
@@ -43,7 +42,7 @@ class GlobalMessage:
     # deserializer rejects an already-materialized ArtifactRef in a typed field.
     shared_X: Any = None
     shared_Y: Optional[np.ndarray] = None
-    average: List[float] = field(default_factory=lambda: [0.0, 0.0])
+    average: Optional[List[float]] = None
     error: float = 0.0
     embedding: Optional[np.ndarray] = None
     embedding_labels: Optional[np.ndarray] = None

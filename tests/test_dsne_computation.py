@@ -14,7 +14,11 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "app", "code"))
 from computation import tsne  # noqa: E402
 from computation.inputs import load_site_inputs  # noqa: E402
 from computation.local_math import OPTIMIZER_CACHE, compute_site_round  # noqa: E402
-from computation.remote_math import aggregate_site_round, is_complete  # noqa: E402
+from computation.remote_math import (  # noqa: E402
+    aggregate_site_round,
+    is_complete,
+    validate_parameters,
+)
 from computation.report import build_report  # noqa: E402
 from computation.types import PHASE_DONE  # noqa: E402
 from framework import cache_file  # noqa: E402
@@ -30,7 +34,7 @@ def _unwrap(result):
     return result, None
 
 
-def _run(max_iterations, random_seed=0):
+def _run(max_iterations, random_seed=0, no_dims=2):
     """Drive the workflow in-process; return final message and site caches."""
     caches = {site: tempfile.mkdtemp() for site in SITES}
     artifact_dir = tempfile.mkdtemp()
@@ -61,6 +65,7 @@ def _run(max_iterations, random_seed=0):
                 remote_state,
                 artifact_dir=artifact_dir,
                 logger=LOGGER,
+                no_dims=no_dims,
                 max_iterations=max_iterations,
                 random_seed=random_seed,
             )
@@ -137,15 +142,27 @@ class WorkflowRoundTests(unittest.TestCase):
         self.assertEqual(sorted(message.site_names.values()), list(SITES))
         self.assertEqual([entry[0] for entry in message.error_history], [10, 20])
 
+    def test_three_dimensional_run(self):
+        message, _ = _run(max_iterations=5, no_dims=3)
+
+        self.assertEqual(message.embedding.shape, (160, 3))
+        self.assertEqual(len(message.average), 3)
+        self.assertTrue(np.all(np.isfinite(message.embedding)))
+
+    def test_unsupported_dimensions_are_rejected(self):
+        for no_dims in (1, 4, True):
+            with self.assertRaisesRegex(ValueError, "no_dims"):
+                validate_parameters(no_dims, 30, 30, 100, 80)
+
 
 class ReportTests(unittest.TestCase):
-    def _report(self, n_labels):
+    def _report(self, n_labels, dims=2):
         rng = np.random.RandomState(0)
         n = 60
         labels = rng.randint(0, n_labels, n).astype(float)
         sources = ["reference"] * 30 + ["site1"] * 20 + ["site2"] * 10
         return build_report(
-            embedding=rng.randn(n, 2),
+            embedding=rng.randn(n, dims),
             labels=labels,
             sources=sources,
             own_name="site2",
@@ -167,6 +184,19 @@ class ReportTests(unittest.TestCase):
         self.assertNotIn('data-mode="label"', html)
         self.assertIn('id="sec-labels"', html)
         self.assertEqual(html.count('class="card facet"'), 6)
+
+    def test_three_dimensional_report_is_rotatable(self):
+        html = self._report(n_labels=2, dims=3)
+        self.assertIn("scatter-3d", html)
+        self.assertIn('class="seg-btn reset-view"', html)
+        self.assertIn("<b>3-D</b>", html)
+        box = html.split('<g class="box">')[1].split("</g>")[0]
+        self.assertEqual(box.count("<line"), 12)
+
+    def test_three_dimensional_facets_use_default_view(self):
+        html = self._report(n_labels=6, dims=3)
+        self.assertEqual(html.count('class="card facet"'), 6)
+        self.assertIn("default viewing angle", html)
 
     def test_site_names_are_escaped(self):
         html = build_report(

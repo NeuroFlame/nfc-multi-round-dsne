@@ -26,10 +26,9 @@ SHARED_X_ARTIFACT = "shared_X.npy"
 
 def validate_parameters(no_dims, initial_dims, perplexity, max_iterations, n_ref):
     """Reject parameter values the algorithm cannot run with."""
-    if no_dims != SUPPORTED_NO_DIMS:
+    if isinstance(no_dims, bool) or no_dims not in SUPPORTED_NO_DIMS:
         raise ValueError(
-            f"no_dims must be {SUPPORTED_NO_DIMS}; this algorithm only supports "
-            "two-dimensional embeddings"
+            "no_dims must be " + " or ".join(str(dims) for dims in SUPPORTED_NO_DIMS)
         )
     if (
         isinstance(max_iterations, bool)
@@ -91,7 +90,7 @@ def aggregate_site_round(
             phase=PHASE_OPTIMIZE,
             iteration=0,
             shared_Y=state.shared_Y,
-            average=[0.0, 0.0],
+            average=[0.0] * state.shared_Y.shape[1],
             error=0.0,
         )
 

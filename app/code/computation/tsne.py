@@ -182,16 +182,18 @@ def initialize_site_embedding(
     n_total: int,
     rng: np.random.RandomState,
 ) -> np.ndarray:
-    """Draw initial 2-D positions uniformly within the reference embedding range.
+    """Draw initial positions uniformly within the reference embedding range.
 
     As in the original, every row (shared and local) is redrawn; the shared
     rows are replaced by the central embedding at the first optimize step.
+    Columns are drawn in order, so 2-D runs match the original draw sequence.
     """
-    x_range = np.max(shared_Y[:, 0]) - np.min(shared_Y[:, 0])
-    y_range = np.max(shared_Y[:, 1]) - np.min(shared_Y[:, 1])
-    Yx = rng.rand(n_total) * x_range + np.min(shared_Y[:, 0])
-    Yy = rng.rand(n_total) * y_range + np.min(shared_Y[:, 1])
-    return np.c_[Yx, Yy]
+    columns = []
+    for dim in range(shared_Y.shape[1]):
+        low = np.min(shared_Y[:, dim])
+        span = np.max(shared_Y[:, dim]) - low
+        columns.append(rng.rand(n_total) * span + low)
+    return np.column_stack(columns)
 
 
 def site_gradient_step(

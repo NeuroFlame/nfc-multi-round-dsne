@@ -76,6 +76,13 @@ then fixed three bugs in the original that kept site points from converging:
 
 Other deliberate differences:
 
+- **3-D embeddings.** The original hard-coded two dimensions in site
+  initialization, centering and plotting. `no_dims` now accepts 2 or 3.
+  Initialization draws one column per dimension in the original order, so
+  seeded 2-D results are unchanged (verified bit-identical against the
+  previous release). The 3-D report view is a dependency-free rotatable SVG,
+  so the report stays one self-contained file.
+
 - **Vectorized gradient.** The per-point Python gradient loop was replaced by
   the equivalent matrix expression. It matches the original `master_child`
   to about 1e-14.
@@ -123,7 +130,7 @@ Two framework/runtime interactions needed computation-side handling:
 
 ## Validation
 
-- `make check`: lint, format, compile, the 133 boilerplate tests, and 10
+- `make check`: lint, format, compile, the 133 boilerplate tests, and 14
   computation tests in `tests/test_dsne_computation.py` all pass.
 - NVFlare simulator, 3 sites (`./run_local_simulation.sh site1,site2,site3`):
   completes and writes identical `global_embedding.csv` at every site, with

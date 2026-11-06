@@ -48,7 +48,7 @@ parameters.
 | --- | --- | --- | --- |
 | `site_data` | string | `site_data.txt` | Site data filename. |
 | `site_label` | string | `site_label.txt` | Site label filename. |
-| `no_dims` | int | `2` | Embedding dimensions. Only `2` is supported. |
+| `no_dims` | int | `2` | Embedding dimensions: `2` (standard) or `3` (rotatable 3-D view in the report). |
 | `initial_dims` | int | `30` | PCA dimensions computed before t-SNE. |
 | `perplexity` | number | `30` | t-SNE perplexity. Must be smaller than the number of reference samples. |
 | `max_iterations` | int | `1000` | Decentralized gradient iterations (1 to 5000). Each iteration is one federated round. |
@@ -75,8 +75,8 @@ Every site receives:
 
 | File | Contents |
 | --- | --- |
-| `global_embedding.csv` | `x`, `y`, `label`, and `source` (`reference` or the site name) for every point. |
-| `tsne_embedding.png` | Scatter plot of the combined embedding, colored by label. |
+| `global_embedding.csv` | `x`, `y` (and `z` for 3-D), `label`, and `source` (`reference` or the site name) for every point. |
+| `tsne_embedding.png` | Scatter plot of the combined embedding, colored by label (3-D runs: one fixed viewing angle). |
 | `summary.json` | Site name, final cost, KL error history, sample counts per site, and the parameters used. |
 | `index.html` | Self-contained results page in the shared NeuroFLAME report style (see below). |
 
@@ -85,11 +85,24 @@ The `index.html` report has light and dark themes and these sections:
 - **Embedding.** An interactive scatter plot (hover for source and label)
   that can be colored by label or by source (this site, reference, other
   sites). With more than three labels the main plot is colored by source, and
-  an **Embedding by label** section shows one small panel per label.
+  an **Embedding by label** section shows one small panel per label. For a
+  3-D embedding the plot can be rotated by dragging or with the arrow keys,
+  with a bounding box and axis indicator for orientation.
 - **Convergence.** KL error by iteration, after early exaggeration.
 - **Neighbor label agreement.** For each source, the share of points whose
   label matches the majority of their 5 nearest neighbors in the embedding.
 - **Run settings** and **Output** download links.
+
+### Choosing 2-D or 3-D
+
+2-D is the default and the usual t-SNE output. It reads well in a static
+report or a printout, and every point is visible at once. 3-D usually reaches
+a lower KL error and can separate classes that crowd together in 2-D. But
+points can hide behind each other, and apparent closeness depends on the
+viewing angle, so it needs to be rotated to read. On the bundled test data,
+over 1000 iterations and 5 seeds, the final KL error was about 0.5 in 2-D
+and 0.16 in 3-D. Neighbor label agreement was 0.95–0.99 in 2-D and 0.99 in
+3-D.
 
 ## Running locally
 
