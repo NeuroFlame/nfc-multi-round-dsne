@@ -202,7 +202,8 @@ changes are needed:
   data type.
 - **B. Curated reference sets bundled per data type** (for example FreeSurfer
   aseg volumes). Simpler for users, but each set must be curated and
-  maintained, and processing versions must match the sites' data.
+  maintained, and processing versions must match the sites' data. More
+  feasible than it first appears for fixed-atlas outputs; see below.
 - **C. A synthetic reference built from pooled statistics.** Needs no real
   reference data, but departs from the published algorithm and would need its
   own validation. Not recommended without a research decision.
@@ -211,6 +212,45 @@ changes are needed:
 ROI tables and FNC vectors would work. Voxel-level VBM (100,000+ columns)
 would need downsampling first: the reference matrix is shared with every
 site, and PCA builds a features × features matrix.
+
+**Converting site data is not the obstacle.** Tools that turn common data
+types into a feature table (one row per subject) already exist, most of them
+in NeuroFLAME:
+
+- **FreeSurfer:** FreeSurfer's `asegstats2table` / `aparcstats2table` give
+  one column per region, the `data.csv` the FreeSurfer regression
+  computations read.
+- **VBM:** each subject's NIfTI image is flattened into one row, usually after
+  masking or downsampling, as `nfc-brainage-prediction-vbm` does with
+  `vbm_downsample_factor`.
+- **BIDS:** BIDS organizes raw scans and needs a processing pipeline first.
+  `nfc-halfpipe` turns BIDS fMRI into connectivity tables for built-in
+  atlases (NeuroMark 1.0: 1,378 columns; also Schaefer 200/400 and
+  Brainnetome 246), and `nfc-label-noise-filtering` already reads those
+  outputs directly.
+
+Conversion shapes the sites' data, but it cannot make that data match the
+MNIST reference. The reference has to come from the same pipeline.
+
+**Fixed-atlas pipelines make option B practical.** They give every site and
+every study identical columns: NeuroMark FNC is always the same 1,378
+features, and FreeSurfer aseg always uses the same structure names. A
+reference set per data type can therefore be built once:
+
+1. Run the same pipeline (for example `nfc-halfpipe`'s NeuroMark output, or
+   FreeSurfer aseg) on a public dataset.
+2. Bundle the resulting table as the reference for that data type, or let the
+   consortium leader supply it (option A).
+
+There is precedent: `nfc-halfpipe` bundles its atlases in its image, and
+`nfc-spatially-constrained-ica` is built around the NeuroMark template. MNIST
+would remain only as test data. Caveats:
+
+- The reference should use the same pipeline version and settings as the
+  sites' data, and ideally a similar population.
+- Public datasets often have data-use terms that may restrict redistributing
+  derived tables inside a Docker image. Check each dataset's terms before
+  bundling.
 
 **If adopted, also update:** `inputs.py` (CSV loading and column selection),
 `tsne.normalize_rows` (pooled per-feature standardization, which adds one
