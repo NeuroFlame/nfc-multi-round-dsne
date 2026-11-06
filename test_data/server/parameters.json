@@ -1,0 +1,9 @@
+{
+  "site_data": "site_data.txt",
+  "site_label": "site_label.txt",
+  "no_dims": 2,
+  "initial_dims": 30,
+  "perplexity": 30,
+  "max_iterations": 1000,
+  "random_seed": 0
+}

@@ -1,0 +1,16 @@
+FROM python:3.11-bookworm
+
+RUN python3 -m pip install -U pip
+RUN python3 -m pip install -U setuptools
+WORKDIR /workspace/
+
+# Copy the requirements.txt file
+COPY ./requirements.txt /workspace/requirements.txt
+
+# Install dependencies from requirements.txt
+RUN python3 -m pip install -r /workspace/requirements.txt
+
+ENV PYTHONPATH=/workspace/app/code/
+ENV NVFLARE_POC_WORKSPACE=/workspace/poc-workspace
+
+CMD ["/bin/bash"]

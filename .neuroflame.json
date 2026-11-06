@@ -1,0 +1,17 @@
+{
+  "manifestVersion": 1,
+  "computation": {
+    "version": "0.1.0"
+  },
+  "compatibility": {
+    "computationApiVersion": "0.1.0",
+    "boilerplateVersion": "0.1.0"
+  },
+  "image": {
+    "title": "nfc-multi-round-dsne",
+    "repository": "coinstacteam/nfc-multi-round-dsne",
+    "floatingTag": "latest",
+    "tagPrefix": "",
+    "source": "https://github.com/NeuroFlame/nfc-multi-round-dsne"
+  }
+}

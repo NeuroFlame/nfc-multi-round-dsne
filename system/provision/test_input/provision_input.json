@@ -1,0 +1,10 @@
+{
+    "users": [
+        {"id": "user1", "name": "site_one"},
+        {"id": "user2", "name": "site_two"},
+        {"id": "user3", "name": "site_three"}
+    ],
+    "computation_parameters": "{\"testKey\":\"testValue\"}",
+    "fed_learn_port": 5000,
+    "host_identifier": "host1"
+}

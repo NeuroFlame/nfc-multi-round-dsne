@@ -1,0 +1,21 @@
+{
+  "format_version": 2,
+  "executors": [
+    {
+      "tasks": [],
+      "executor": {
+        "path": "runtime.executor.RuntimeExecutor",
+        "args": {}
+      }
+    }
+  ],
+  "task_result_filters": [],
+  "task_data_filters": [],
+  "components": [
+    {
+      "id": "artifact_transfer",
+      "path": "framework.artifact_transfer.ArtifactTransfer",
+      "args": {}
+    }
+  ]
+}
