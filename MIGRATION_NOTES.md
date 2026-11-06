@@ -46,16 +46,39 @@ round in which sites disagree.
 - **Outputs.** The original produced `final_embed_value.npy` and
   `sample_fig.png` on central only. Every site now writes
   `global_embedding.csv`, `tsne_embedding.png`, `summary.json` and
-  `index.html`.
+  `index.html`. The HTML report (`report.py`) uses the shared NeuroFLAME
+  report design from the sibling computations (`nfc-combatdc`, `nfc-dpsvm`,
+  and others): header chips, site pills, section navigation, cards, stat
+  tables, a light/dark theme toggle and inline SVG charts.
+- **Site identity.** Each site mints a random token in its input step and
+  sends it in the setup round. Central maps tokens to display names and
+  returns the map with the final embedding, so a site can name itself in its
+  report. This is the same pattern as the sibling computations.
 
 ## Numerical behavior
 
-The math is kept equivalent to the original, with these deliberate
-differences:
+The port first reproduced the original math exactly (see Validation). It
+then fixed three bugs in the original that kept site points from converging:
+
+- **Site gains are now persisted.** `local_2` received the updated adaptive
+  gains from `master_child` but re-saved the incoming array, so site gains
+  stayed at 1 for the whole run. `local_math._optimize` now saves the updated
+  gains.
+- **Early exaggeration is fully removed.** The original multiplied `P` by 8
+  and divided by 4 at iteration 100, leaving 2x exaggeration for the rest of
+  the run. The port uses the standard factor of 4 and divides by the same
+  factor. (Factor 8 with a full /8 was also tested; 4 scored slightly better
+  and matches reference t-SNE.)
+- **PCA keeps the leading components.** The original used `np.linalg.eig`
+  and took the first `initial_dims` columns without sorting by eigenvalue.
+  `pca()` now uses `np.linalg.eigh` (the scatter matrix is symmetric) and
+  sorts by descending eigenvalue.
+
+Other deliberate differences:
 
 - **Vectorized gradient.** The per-point Python gradient loop was replaced by
-  the equivalent matrix expression. On the bundled data it matches the
-  original `master_child` to about 1e-14.
+  the equivalent matrix expression. It matches the original `master_child`
+  to about 1e-14.
 - **Iteration numbering.** The original used COINSTAC's global iteration
   counter, which was already at about 3 when optimization began, and ran
   about `max_iterations - 3` gradient steps. This port numbers gradient steps
@@ -70,24 +93,14 @@ differences:
   non-finite values, `no_dims != 2`, and perplexity too large for the
   reference set now fail with clear errors.
 
-## Behavior carried over from the original
+Kept from the original, by design rather than as bugs:
 
-These are kept as-is so results stay comparable. Each one is worth reviewing
-on the algorithm side:
-
-1. **Site gains are never updated.** `local_2` received updated gains from
-   `master_child` but re-saved the incoming array, so the cached site gains
-   stay at 1. The port keeps this (see the comment in
-   `local_math._optimize`).
-2. **Exaggeration is never fully removed.** `P` is multiplied by 8 and later
-   divided by 4, so a 2x exaggeration remains for the rest of the run.
-   Reference t-SNE uses x4 then /4.
-3. **PCA eigenvectors are unsorted.** `pca()` uses `np.linalg.eig` and takes
-   the first `initial_dims` columns without sorting by eigenvalue.
-4. **Site initialization ignores shared positions.** Every combined row is
-   drawn uniformly within the reference embedding's range. The shared rows are
-   replaced with the central embedding at the first optimize step.
-5. **No factor of 4 in the gradient**, matching the original implementation.
+- Site initialization draws every combined row uniformly within the
+  reference embedding's range. The shared rows are replaced with the central
+  embedding at the first optimize step.
+- The gradient omits the conventional factor of 4, which only rescales the
+  learning rate. This is the same as the reference `tsne.py` this code
+  derives from.
 
 ## Runtime workarounds
 
@@ -110,18 +123,26 @@ Two framework/runtime interactions needed computation-side handling:
 
 ## Validation
 
-- `make check`: lint, format, compile and all 133 boilerplate tests pass.
+- `make check`: lint, format, compile, the 133 boilerplate tests, and 10
+  computation tests in `tests/test_dsne_computation.py` all pass.
 - NVFlare simulator, 3 sites (`./run_local_simulation.sh site1,site2,site3`):
   completes and writes identical `global_embedding.csv` at every site, with
   80 reference + 40/20/20 site points. Each iteration is one federated round,
   about 10 s per round in the simulator on an Apple Silicon host (amd64
   emulation).
-- In-process comparison over 1000 iterations against a transcription of the
-  original COINSTAC loop, on the same data. 5-NN label agreement is 0.64 for
-  the port vs 0.65 for the original (reference points 0.82 vs 0.81), and the
-  final KL is 7.03 vs 7.70. In both, site points separate poorly on this small
-  test set. That is a property of the original algorithm (see the carried-over
-  behavior above), not of the port.
+- **Port fidelity, before the fixes.** In-process over 1000 iterations,
+  compared with a transcription of the original COINSTAC loop on the same
+  data: 5-NN label agreement 0.64 vs 0.65, final KL 7.03 vs 7.70.
+- **Effect of the fixes.** In-process, 1000 iterations, mean ± sd over 5
+  seeds, 5-NN majority label agreement:
+
+  | Version | Site points | Reference points | Overall |
+  | --- | --- | --- | --- |
+  | Faithful port (original behavior) | 0.62 ± 0.17 | 0.92 | 0.77 ± 0.13 |
+  | Fixed, exaggeration x8 then /8 | 0.91 ± 0.06 | 0.97 | 0.94 ± 0.04 |
+  | Fixed, exaggeration x4 then /4 (shipped) | 0.96 ± 0.03 | 0.97 | 0.97 ± 0.02 |
+
+  Final KL error for seed 0 dropped from about 7 to 0.47.
 
 ## Boilerplate tests
 

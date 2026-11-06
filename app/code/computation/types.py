@@ -1,7 +1,7 @@
 """Define payload and state values exchanged by the dSNE-MS workflow."""
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -48,6 +48,10 @@ class GlobalMessage:
     embedding: Optional[np.ndarray] = None
     embedding_labels: Optional[np.ndarray] = None
     embedding_sources: Optional[List[str]] = None
+    # Final message only: site token -> display name, so each site can find
+    # itself, and the recorded (iteration, KL error) history.
+    site_names: Optional[Dict[str, str]] = None
+    error_history: Optional[List[List[float]]] = None
 
 
 @dataclass
@@ -62,6 +66,7 @@ class SiteUpdate:
     n_samples: int
     n_features: int
     iteration: int = 0
+    token: Optional[str] = None
     shared_Y: Optional[np.ndarray] = None
     shared_iY: Optional[np.ndarray] = None
     mean: Optional[List[float]] = None
@@ -81,6 +86,7 @@ class LocalState:
     n_samples: int
     n_features: int
     labels: np.ndarray
+    token: str = ""
     shared_rows: int = 0
 
 
@@ -90,3 +96,5 @@ class RemoteState:
 
     shared_labels: np.ndarray
     shared_Y: np.ndarray
+    site_names: Dict[str, str] = field(default_factory=dict)
+    error_history: List[List[float]] = field(default_factory=list)

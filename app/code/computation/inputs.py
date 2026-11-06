@@ -1,6 +1,7 @@
 """Load site-local and reference inputs for dSNE-MS."""
 
 import os
+import secrets
 
 import numpy as np
 from framework import cache_file, with_state
@@ -67,7 +68,12 @@ def load_site_inputs(
     np.save(cache_file(SITE_DATA_CACHE, cache_dir=cache_dir), X)
     return with_state(
         GlobalMessage(phase=PHASE_SETUP),
-        LocalState(n_samples=X.shape[0], n_features=X.shape[1], labels=labels),
+        LocalState(
+            n_samples=X.shape[0],
+            n_features=X.shape[1],
+            labels=labels,
+            token=secrets.token_hex(16),
+        ),
     )
 
 

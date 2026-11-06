@@ -77,8 +77,19 @@ Every site receives:
 | --- | --- |
 | `global_embedding.csv` | `x`, `y`, `label`, and `source` (`reference` or the site name) for every point. |
 | `tsne_embedding.png` | Scatter plot of the combined embedding, colored by label. |
-| `summary.json` | Final cost, sample counts per site, and the parameters used. |
-| `index.html` | A report with the plot and summary embedded. |
+| `summary.json` | Site name, final cost, KL error history, sample counts per site, and the parameters used. |
+| `index.html` | Self-contained results page in the shared NeuroFLAME report style (see below). |
+
+The `index.html` report has light and dark themes and these sections:
+
+- **Embedding.** An interactive scatter plot (hover for source and label)
+  that can be colored by label or by source (this site, reference, other
+  sites). With more than three labels the main plot is colored by source, and
+  an **Embedding by label** section shows one small panel per label.
+- **Convergence.** KL error by iteration, after early exaggeration.
+- **Neighbor label agreement.** For each source, the share of points whose
+  label matches the majority of their 5 nearest neighbors in the embedding.
+- **Run settings** and **Output** download links.
 
 ## Running locally
 

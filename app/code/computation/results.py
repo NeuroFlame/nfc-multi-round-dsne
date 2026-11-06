@@ -1,7 +1,5 @@
 """Build the final dSNE-MS outputs written at every site (``remote_4``)."""
 
-import base64
-import html
 import io
 import os
 
@@ -13,9 +11,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
+from .report import build_report  # noqa: E402
 from .types import PHASE_DONE, REFERENCE_SOURCE, GlobalMessage, LocalState  # noqa: E402
 
 PLOT_FILENAME = "tsne_embedding.png"
+EMBEDDING_FILENAME = "global_embedding.csv"
+SUMMARY_FILENAME = "summary.json"
 
 
 def build_outputs(
@@ -35,6 +36,12 @@ def build_outputs(
     embedding = np.asarray(message.embedding, dtype=float)
     labels = np.asarray(message.embedding_labels, dtype=float)
     sources = list(message.embedding_sources)
+    site_names = dict(message.site_names or {})
+    own_name = site_names.get(state.token)
+    if own_name is None:
+        raise ValueError("This site's identity was not found in the final message")
+    participating = list(site_names.values())
+    error_history = [list(entry) for entry in (message.error_history or [])]
 
     global_df = pd.DataFrame(
         {
@@ -51,6 +58,7 @@ def build_outputs(
         plot_file.write(png_bytes)
 
     summary = {
+        "site": own_name,
         "final_error": message.error,
         "n_reference_samples": sources.count(REFERENCE_SOURCE),
         "n_site_samples": {
@@ -59,6 +67,7 @@ def build_outputs(
             if source != REFERENCE_SOURCE
         },
         "n_local_samples": state.n_samples,
+        "kl_error_history": error_history,
         "parameters": {
             key: parameters.get(key)
             for key in (
@@ -72,10 +81,26 @@ def build_outputs(
         },
     }
 
+    report = build_report(
+        embedding=embedding,
+        labels=labels,
+        sources=sources,
+        own_name=own_name,
+        site_names=participating,
+        error_history=error_history,
+        final_error=message.error,
+        parameters=parameters,
+        output_files={
+            EMBEDDING_FILENAME: "Coordinates, label and source of every point",
+            PLOT_FILENAME: "Static image of the embedding colored by label",
+            SUMMARY_FILENAME: "Run summary, KL error history and parameters",
+        },
+    )
+
     return {
-        "global_embedding.csv": global_df,
-        "summary.json": summary,
-        "index.html": _render_report(summary, png_bytes),
+        EMBEDDING_FILENAME: global_df,
+        SUMMARY_FILENAME: summary,
+        "index.html": report,
     }
 
 
@@ -105,43 +130,3 @@ def _render_plot(embedding: np.ndarray, labels: np.ndarray) -> bytes:
     figure.savefig(buffer, format="png", dpi=120, bbox_inches="tight")
     plt.close(figure)
     return buffer.getvalue()
-
-
-def _render_report(summary: dict, png_bytes: bytes) -> str:
-    """Return a self-contained HTML report with the embedded plot."""
-    image = base64.b64encode(png_bytes).decode("ascii")
-    site_rows = "".join(
-        f"<tr><td>{html.escape(str(site))}</td><td>{count}</td></tr>"
-        for site, count in summary["n_site_samples"].items()
-    )
-    parameter_rows = "".join(
-        f"<tr><td>{html.escape(str(key))}</td><td>{html.escape(str(value))}</td></tr>"
-        for key, value in summary["parameters"].items()
-    )
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>dSNE-MS results</title>
-<style>
-body {{ font-family: sans-serif; margin: 2rem; color: #222; }}
-table {{ border-collapse: collapse; margin-bottom: 1.5rem; }}
-td, th {{ border: 1px solid #ccc; padding: 0.3rem 0.8rem; text-align: left; }}
-img {{ max-width: 100%; }}
-</style>
-</head>
-<body>
-<h1>Decentralized multi-shot t-SNE</h1>
-<img src="data:image/png;base64,{image}" alt="t-SNE embedding scatter plot">
-<h2>Summary</h2>
-<table>
-<tr><th>Final KL error (site average)</th><td>{summary["final_error"]:.6f}</td></tr>
-<tr><th>Reference samples</th><td>{summary["n_reference_samples"]}</td></tr>
-</table>
-<h2>Samples per site</h2>
-<table><tr><th>Site</th><th>Samples</th></tr>{site_rows}</table>
-<h2>Parameters</h2>
-<table><tr><th>Name</th><th>Value</th></tr>{parameter_rows}</table>
-</body>
-</html>
-"""

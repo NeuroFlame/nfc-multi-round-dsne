@@ -1,9 +1,12 @@
 """t-SNE math ported from coinstac-dsne-multishot ``tsneFunctions.py``.
 
-The numerical behavior intentionally matches the original COINSTAC
-implementation. The only change is that the per-point Python gradient loop
-is replaced by an equivalent matrix expression, which is substantially faster
-for the thousands of rounds this computation runs.
+Differences from the original COINSTAC implementation:
+
+- The per-point Python gradient loop is replaced by an equivalent matrix
+  expression, which is much faster over thousands of rounds.
+- PCA uses the leading eigenvectors (sorted), not the unsorted first columns.
+- Early exaggeration uses the standard factor of 4 and is fully removed at
+  iteration 100 (the original multiplied by 8 and divided by 4, leaving 2x).
 """
 
 from typing import Optional, Tuple
@@ -13,8 +16,8 @@ from threadpoolctl import threadpool_limits
 
 # NVFlare runs computation code in processes forked from a multithreaded
 # parent. A multithreaded OpenBLAS pool inherited across that fork can
-# deadlock on the first large LAPACK call (observed in ``np.linalg.eig``
-# during the reference PCA). Pin BLAS to one thread for this process; the
+# deadlock on the first large LAPACK call (observed in the reference PCA's
+# eigendecomposition). Pin BLAS to one thread for this process; the
 # matrices here are small enough that this costs little.
 threadpool_limits(limits=1, user_api="blas")
 
@@ -23,9 +26,8 @@ FINAL_MOMENTUM = 0.9
 MOMENTUM_SWITCH_ITERATION = 20
 LEARNING_RATE = 500
 MIN_GAIN = 0.01
-EARLY_EXAGGERATION = 8
+EARLY_EXAGGERATION = 4
 STOP_EXAGGERATION_ITERATION = 100
-EXAGGERATION_REDUCTION = 4
 REFERENCE_ITERATIONS = 1000
 COST_INTERVAL = 10
 
@@ -92,18 +94,24 @@ def x2p(X: np.ndarray, tol: float = 1e-5, perplexity: float = 30.0) -> np.ndarra
 
 
 def pca(X: np.ndarray, no_dims: int) -> np.ndarray:
-    """Project X onto ``no_dims`` eigenvectors of its scatter matrix."""
+    """Project X onto its ``no_dims`` leading principal components.
+
+    The scatter matrix is symmetric, so ``eigh`` gives real eigenpairs; they
+    are sorted by descending eigenvalue so the leading components are kept.
+    (The original used ``eig`` and took the first columns unsorted.)
+    """
     n = X.shape[0]
     X = X - np.tile(np.mean(X, 0), (n, 1))
-    _, M = np.linalg.eig(np.dot(X.T, X))
-    return np.dot(X, M[:, 0:no_dims])
+    eigenvalues, M = np.linalg.eigh(np.dot(X.T, X))
+    order = np.argsort(eigenvalues)[::-1]
+    return np.dot(X, M[:, order[:no_dims]])
 
 
 def joint_probabilities(
     X: np.ndarray, initial_dims: int, perplexity: float
 ) -> np.ndarray:
     """Return the exaggerated symmetric affinity matrix used by both sides."""
-    X = pca(X, initial_dims).real
+    X = pca(X, initial_dims)
     P = x2p(X, 1e-5, perplexity)
     P = P + np.transpose(P)
     P = P / np.sum(P)
@@ -164,7 +172,7 @@ def embed_reference(
         Y = Y + iY
         Y = Y - np.tile(np.mean(Y, 0), (n, 1))
         if iteration == STOP_EXAGGERATION_ITERATION:
-            P = P / EXAGGERATION_REDUCTION
+            P = P / EARLY_EXAGGERATION
 
     return Y
 
@@ -208,7 +216,7 @@ def site_gradient_step(
         error = float(np.sum(P * np.log(P / Q)))
 
     if iteration == STOP_EXAGGERATION_ITERATION:
-        P = P / EXAGGERATION_REDUCTION
+        P = P / EARLY_EXAGGERATION
 
     return dY, iY, gains, P, error
 

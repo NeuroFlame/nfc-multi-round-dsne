@@ -40,7 +40,10 @@ def compute_site_round(
     """Dispatch one site round according to the central message's phase."""
     if message.phase == PHASE_SETUP:
         return SiteUpdate(
-            phase=PHASE_SETUP, n_samples=state.n_samples, n_features=state.n_features
+            phase=PHASE_SETUP,
+            n_samples=state.n_samples,
+            n_features=state.n_features,
+            token=state.token,
         )
     if message.phase == PHASE_INITIALIZE:
         return _initialize(
@@ -106,13 +109,11 @@ def _optimize(message, state, cache_dir, logger, max_iterations):
     Y[:shared_rows, :] = message.shared_Y
     Y = Y - np.asarray(message.average, dtype=float)
 
-    _, iY, _, new_P, error = site_gradient_step(
+    _, iY, gains, new_P, error = site_gradient_step(
         Y, iY, gains, P, iteration, message.error
     )
-    # Matches the original: sites move only their own points; shared points are
-    # updated centrally from the averaged site updates. The original also never
-    # persisted the updated gains (it re-saved the incoming array), so cached
-    # gains intentionally stay unchanged here.
+    # Sites move only their own points; shared points are updated centrally
+    # from the averaged site updates.
     Y[shared_rows:, :] = Y[shared_rows:, :] + iY[shared_rows:, :]
 
     if new_P is not P:

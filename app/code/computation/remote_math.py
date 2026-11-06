@@ -7,7 +7,7 @@ import numpy as np
 from framework import artifact, with_state
 
 from .inputs import load_reference_data
-from .tsne import embed_reference, make_rng, normalize_rows
+from .tsne import COST_INTERVAL, embed_reference, make_rng, normalize_rows
 from .types import (
     MAX_SUPPORTED_ITERATIONS,
     PHASE_DONE,
@@ -120,6 +120,9 @@ def _embed_reference(
             f"initial_dims ({initial_dims}) exceeds the number of features "
             f"({shared_X.shape[1]})"
         )
+    site_names = {update.token: name for name, update in site_updates.items()}
+    if None in site_names or len(site_names) != len(site_updates):
+        raise ValueError("Sites must register distinct identity tokens")
     for site_name, update in site_updates.items():
         if update.n_features != shared_X.shape[1]:
             raise ValueError(
@@ -145,7 +148,11 @@ def _embed_reference(
             ),
             shared_Y=shared_Y,
         ),
-        RemoteState(shared_labels=shared_labels, shared_Y=shared_Y),
+        RemoteState(
+            shared_labels=shared_labels,
+            shared_Y=shared_Y,
+            site_names=site_names,
+        ),
     )
 
 
@@ -167,13 +174,20 @@ def _average_site_updates(site_updates, state, logger):
     if any(finished) and not all(finished):
         raise ValueError("Sites disagree about the final iteration")
 
+    # Sites recompute the cost every COST_INTERVAL iterations; record those.
+    if (iteration + 1) % COST_INTERVAL == 0:
+        state.error_history.append([iteration + 1, error])
+
     if not all(finished):
-        return GlobalMessage(
-            phase=PHASE_OPTIMIZE,
-            iteration=iteration + 1,
-            shared_Y=shared_Y,
-            average=average.tolist(),
-            error=error,
+        return with_state(
+            GlobalMessage(
+                phase=PHASE_OPTIMIZE,
+                iteration=iteration + 1,
+                shared_Y=shared_Y,
+                average=average.tolist(),
+                error=error,
+            ),
+            state,
         )
 
     logger.info("Optimization finished: error %.6f", error)
@@ -193,6 +207,8 @@ def _average_site_updates(site_updates, state, logger):
         embedding=np.vstack(embedding),
         embedding_labels=np.concatenate(labels),
         embedding_sources=sources,
+        site_names=state.site_names,
+        error_history=state.error_history,
     )
 
 
